@@ -1,0 +1,72 @@
+#!/bin/bash
+function doDecrypt(){
+    echo "decrypting using RSA key $key" >&2
+    mkdir -p ~/bin/rsa/keyTemp 2>/dev/null
+    rm ~/bin/rsa/keyTemp/* -rf 2>/dev/null
+    cp "$key" ~/bin/rsa/keyTemp/id_rsa.key 2>/dev/null
+    chmod 600 ~/bin/rsa/keyTemp/id_rsa.key 2>/dev/null
+
+    ssh-keygen -p -N "" -m pem -f ~/bin/rsa/keyTemp/id_rsa.key >/dev/null
+    openssl pkcs8 -topk8 -nocrypt -in ~/bin/rsa/keyTemp/id_rsa.key > ~/bin/rsa/keyTemp/decrypt.key 2>/dev/null
+    if [ -z "$outfile" ] && [ ! -f "$outfile" ]; then
+        echo "$message" | tr -d '\n' | base64 -d | openssl rsautl -decrypt -inkey ~/bin/rsa/keyTemp/decrypt.key
+    else
+        echo "$message" | tr -d '\n' | base64 -d | openssl rsautl -decrypt -inkey ~/bin/rsa/keyTemp/decrypt.key > "$outfile"'.swp'
+        if [ "$(cat "$outfile"'.swp' | wc -c)" != "0" ]; then
+            mv "$outfile"'.swp' "$outfile"
+        else
+            rm "$outfile"'.swp'
+        fi
+    fi
+    cleanup
+    exit 0
+}
+function cleanup(){
+    rm ~/bin/rsa/keyTemp/ -rf 2>/dev/null
+}
+function help(){
+   echo "decrypt [options]"
+   echo "Options:"
+   echo "--help, -h Display help message"
+   echo "--infile, -f File to decrypt"
+   echo "--inkey, -k Key to use to decrypt with"
+   echo "--outfile, -o output file."
+   exit 0
+}
+
+if [ "$#" == "0" ]; then
+    help
+fi
+
+for i in "$@"
+do
+case $i in
+    -f=*|--infile=*)
+        infile="${i#*=}"
+    ;;
+    -k=*|--inkey=*)
+        key="${i#*=}"
+    ;;
+    -o=*|--outfile=*)
+        outfile="${i#*=}"
+    ;;
+    -h|--help)
+        help
+    ;;
+esac
+done
+
+if [ -z "$key" ] || [ ! -f "$key" ]; then
+    echo Missing decryption key>&2
+    exit
+fi
+if [ -z "$infile" ]; then    
+    read -p "Enter message to be decrypted: " -s message
+    echo >&2
+elif [ ! -f "$infile" ]; then
+   echo "No such file \"$infile\"." >&2
+   exit 1
+else
+    message=`cat "$infile"`
+fi
+doDecrypt 

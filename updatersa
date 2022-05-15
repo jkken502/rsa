@@ -1,0 +1,4 @@
+#!/bin/bash
+cd ~/bin/rsa
+git reset --hard HEAD
+git pull
